@@ -26,6 +26,7 @@ type BaseClient struct {
 	readMux  sync.Mutex
 	writeMux sync.Mutex
 
+	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
 	id string
@@ -209,10 +210,9 @@ func (bc *BaseClient) Start() error {
 	bc.setStatus(ClientStatusConnected)
 	bc.connTsMilliList = append(bc.connTsMilliList, time.Now().UnixMilli())
 	bc.connId = createConnId(bc.id)
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	bc.ctxCancelFunc = cancelFunc
+	bc.ctx, bc.ctxCancelFunc = context.WithCancel(context.Background())
 	if bc.ping != nil {
-		go bc.ping(ctx, bc)
+		go bc.ping(bc.ctx, bc)
 	}
 	return nil
 }
@@ -426,7 +426,7 @@ func filterTopics(oldTopics, newTopics []string) []string {
 	for _, topic := range oldTopics {
 		mapOldTopics[topic] = true
 	}
-	validTopics := []string{}
+	var validTopics []string
 	for _, topic := range newTopics {
 		if mapOldTopics[topic] {
 			continue

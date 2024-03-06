@@ -19,6 +19,9 @@ type MergedClientMsg struct {
 type MergedClient struct {
 	mux sync.Mutex
 
+	ctx           context.Context
+	ctxCancelFunc context.CancelFunc
+
 	id          string
 	url         string
 	maxTopicNum int
@@ -48,8 +51,11 @@ func NewMergedClient(url string, repeated bool, maxTopicNum int, logger *slog.Lo
 		logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 	}
 	logger = logger.With("ws_merged_clt_id", id)
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	return &MergedClient{
 		id:                  id,
+		ctx:                 ctx,
+		ctxCancelFunc:       cancelFunc,
 		url:                 url,
 		maxTopicNum:         maxTopicNum,
 		needRecon:           repeated,
@@ -110,6 +116,22 @@ func (mc *MergedClient) SetReconWaitingTsMilli(tsMilli int64) *MergedClient {
 	return mc
 }
 
+func (mc *MergedClient) AddClient(topics []string) (remainTopics []string, err error) {
+	mc.mux.Lock()
+	defer mc.mux.Unlock()
+	newClient := mc.newBaseClient()
+	err = newClient.Start()
+	if err != nil {
+		return
+	}
+	mc.clients = append(mc.clients, newClient)
+	go mc.waitMsg(mc.ctx, newClient)
+	if len(topics) <= 0 {
+		return
+	}
+	return newClient.Sub(topics)
+}
+
 func (mc *MergedClient) Sub(topics []string) error {
 	mc.mux.Lock()
 	defer mc.mux.Unlock()
@@ -135,7 +157,7 @@ func (mc *MergedClient) Sub(topics []string) error {
 			return err
 		}
 		mc.clients = append(mc.clients, newClient)
-		go mc.waitMsg(newClient)
+		go mc.waitMsg(mc.ctx, newClient)
 		remainTopics, err = newClient.Sub(remainTopics)
 		if err != nil {
 			return err
@@ -176,7 +198,7 @@ func (mc *MergedClient) WriteJSON(v any) error {
 }
 
 func (mc *MergedClient) filterTopics(newTopics []string) []string {
-	totalOldTopics := []string{}
+	var totalOldTopics []string
 	for _, client := range mc.clients {
 		totalOldTopics = append(totalOldTopics, client.topics...)
 	}
@@ -195,7 +217,7 @@ func (mc *MergedClient) newBaseClient() *BaseClient {
 		SetReconWaitingTsMilli(mc.reconWaitingTsMilli)
 }
 
-func (mc *MergedClient) waitMsg(client *BaseClient) {
+func (mc *MergedClient) waitMsg(ctx context.Context, client *BaseClient) {
 	for {
 		msgType, data, err := client.Read()
 		newMsg := MergedClientMsg{
@@ -214,7 +236,12 @@ func (mc *MergedClient) waitMsg(client *BaseClient) {
 			if !client.needRecon {
 				return
 			}
-			time.Sleep(time.Millisecond * 100)
+			select {
+			case <-time.After(time.Millisecond * 100):
+			case <-mc.ctx.Done():
+				_ = client.CloseConn()
+				return
+			}
 		}
 	}
 }
