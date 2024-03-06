@@ -44,11 +44,11 @@ type BaseClient struct {
 	maxTopicNum int
 	topics      []string
 
-	conCallback  func(ws *BaseClient) error
-	topicSuber   func(ws *BaseClient, topics []string) error
-	topicUnsuber func(ws *BaseClient, topics []string) error
-	ping         func(ctx context.Context, ws *BaseClient)
-	pong         func(ws *BaseClient)
+	conCallback  func(bc *BaseClient) error
+	topicSuber   func(bc *BaseClient, topics []string) error
+	topicUnsuber func(bc *BaseClient, topics []string) error
+	ping         func(ctx context.Context, bc *BaseClient)
+	pong         func(bc *BaseClient)
 
 	successStatusCode int
 
@@ -67,7 +67,7 @@ func NewBaseClient(url string, repeated bool, maxTopicNum int, logger *slog.Logg
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 	}
-	logger = logger.With("id", id)
+	logger = logger.With("ws_base_clt_id", id)
 	return &BaseClient{
 		mux:                 sync.Mutex{},
 		id:                  id,
@@ -83,168 +83,168 @@ func NewBaseClient(url string, repeated bool, maxTopicNum int, logger *slog.Logg
 	}
 }
 
-func (ws *BaseClient) SetConCallback(cb func(ws *BaseClient) error) *BaseClient {
-	ws.conCallback = cb
-	return ws
+func (bc *BaseClient) SetConCallback(cb func(bc *BaseClient) error) *BaseClient {
+	bc.conCallback = cb
+	return bc
 }
 
-func (ws *BaseClient) SetTopicSuber(suber func(ws *BaseClient, topics []string) error) *BaseClient {
-	ws.topicSuber = suber
-	return ws
+func (bc *BaseClient) SetTopicSuber(suber func(bc *BaseClient, topics []string) error) *BaseClient {
+	bc.topicSuber = suber
+	return bc
 }
 
-func (ws *BaseClient) SetTopicUnSuber(unsuber func(ws *BaseClient, topics []string) error) *BaseClient {
-	ws.topicUnsuber = unsuber
-	return ws
+func (bc *BaseClient) SetTopicUnSuber(unsuber func(bc *BaseClient, topics []string) error) *BaseClient {
+	bc.topicUnsuber = unsuber
+	return bc
 }
 
-func (ws *BaseClient) SetPing(ping func(ctx context.Context, ws *BaseClient)) *BaseClient {
-	ws.ping = ping
-	return ws
+func (bc *BaseClient) SetPing(ping func(ctx context.Context, bc *BaseClient)) *BaseClient {
+	bc.ping = ping
+	return bc
 }
 
-func (ws *BaseClient) SetPong(pong func(ws *BaseClient)) *BaseClient {
-	ws.pong = pong
-	return ws
+func (bc *BaseClient) SetPong(pong func(bc *BaseClient)) *BaseClient {
+	bc.pong = pong
+	return bc
 }
 
-func (ws *BaseClient) SetUrlFunc(urlFunc func() (string, error)) *BaseClient {
-	ws.urlFunc = urlFunc
-	return ws
+func (bc *BaseClient) SetUrlFunc(urlFunc func() (string, error)) *BaseClient {
+	bc.urlFunc = urlFunc
+	return bc
 }
 
-func (ws *BaseClient) SetSuccessStatusCode(code int) *BaseClient {
-	ws.successStatusCode = code
-	return ws
+func (bc *BaseClient) SetSuccessStatusCode(code int) *BaseClient {
+	bc.successStatusCode = code
+	return bc
 }
 
-func (ws *BaseClient) SetReconWaitingTsMilli(tsMilli int64) *BaseClient {
-	ws.reconWaitingTsMilli = tsMilli
-	return ws
+func (bc *BaseClient) SetReconWaitingTsMilli(tsMilli int64) *BaseClient {
+	bc.reconWaitingTsMilli = tsMilli
+	return bc
 }
 
-func (ws *BaseClient) Status() ClientStatus {
-	ws.muxStatus.RLock()
-	defer ws.muxStatus.RUnlock()
-	return ws.status
+func (bc *BaseClient) Status() ClientStatus {
+	bc.muxStatus.RLock()
+	defer bc.muxStatus.RUnlock()
+	return bc.status
 }
 
-func (ws *BaseClient) setStatus(s ClientStatus) {
-	ws.muxStatus.Lock()
-	defer ws.muxStatus.Unlock()
-	ws.status = s
+func (bc *BaseClient) setStatus(s ClientStatus) {
+	bc.muxStatus.Lock()
+	defer bc.muxStatus.Unlock()
+	bc.status = s
 }
 
-func (ws *BaseClient) Topics() []string {
-	return ws.topics
+func (bc *BaseClient) Topics() []string {
+	return bc.topics
 }
 
-func (ws *BaseClient) NeedRecon() bool {
-	return ws.needRecon
+func (bc *BaseClient) NeedRecon() bool {
+	return bc.needRecon
 }
 
-func (ws *BaseClient) RunTsMilli() int64 {
-	return time.Now().UnixMilli() - ws.createTsMilli
+func (bc *BaseClient) RunTsMilli() int64 {
+	return time.Now().UnixMilli() - bc.createTsMilli
 }
 
-func (ws *BaseClient) ConnTsMilliList() []int64 {
-	return ws.connTsMilliList
+func (bc *BaseClient) ConnTsMilliList() []int64 {
+	return bc.connTsMilliList
 }
 
-func (ws *BaseClient) SetLatestServerPingTsMilli(ts int64) {
-	ws.latestServerPingTsMilli = ts
+func (bc *BaseClient) SetLatestServerPingTsMilli(ts int64) {
+	bc.latestServerPingTsMilli = ts
 }
 
-func (ws *BaseClient) LatestServerPingTsMilli() int64 {
-	return ws.latestServerPingTsMilli
+func (bc *BaseClient) LatestServerPingTsMilli() int64 {
+	return bc.latestServerPingTsMilli
 }
 
-func (ws *BaseClient) SetLatestServerPongTsMilli(ts int64) {
-	ws.latestServerPongTsMilli = ts
+func (bc *BaseClient) SetLatestServerPongTsMilli(ts int64) {
+	bc.latestServerPongTsMilli = ts
 }
 
-func (ws *BaseClient) LatestServerPongTsMilli() int64 {
-	return ws.latestServerPongTsMilli
+func (bc *BaseClient) LatestServerPongTsMilli() int64 {
+	return bc.latestServerPongTsMilli
 }
 
-func (ws *BaseClient) Start() error {
-	ws.mux.Lock()
+func (bc *BaseClient) Start() error {
+	bc.mux.Lock()
 	defer func() {
-		if ws.Status() == ClientStatusDialing {
-			ws.setStatus(ClientStatusNew)
+		if bc.Status() == ClientStatusDialing {
+			bc.setStatus(ClientStatusNew)
 		}
-		ws.mux.Unlock()
+		bc.mux.Unlock()
 	}()
-	if ws.Status() != ClientStatusNew {
-		ws.connFailTimes++
-		return errors.New("wsclt: " + ws.id + " is not new")
+	if bc.Status() != ClientStatusNew {
+		bc.connFailTimes++
+		return errors.New("wsclt: " + bc.id + " is not new")
 	}
-	ws.setStatus(ClientStatusDialing)
-	url := ws.url
+	bc.setStatus(ClientStatusDialing)
+	url := bc.url
 	var err error
-	if ws.urlFunc != nil {
-		url, err = ws.urlFunc()
+	if bc.urlFunc != nil {
+		url, err = bc.urlFunc()
 		if err != nil {
 			return errors.New("wsclt: " + err.Error())
 		}
 	}
-	conn, httpResp, err := ws.dialer.Dial(url, nil)
+	conn, httpResp, err := bc.dialer.Dial(url, nil)
 	if err != nil {
-		ws.connFailTimes++
-		return fmt.Errorf("wsclt: dial %v, %w, fail times: %v", url, err, ws.connFailTimes)
+		bc.connFailTimes++
+		return fmt.Errorf("wsclt: dial %v, %w, fail times: %v", url, err, bc.connFailTimes)
 	}
-	if httpResp.StatusCode != ws.successStatusCode {
-		ws.connFailTimes++
-		return fmt.Errorf("wsclt: response code %v, require code %v", httpResp.StatusCode, ws.successStatusCode)
+	if httpResp.StatusCode != bc.successStatusCode {
+		bc.connFailTimes++
+		return fmt.Errorf("wsclt: response code %v, require code %v", httpResp.StatusCode, bc.successStatusCode)
 	}
-	ws.conn = conn
-	if ws.conCallback != nil {
-		err := ws.conCallback(ws)
+	bc.conn = conn
+	if bc.conCallback != nil {
+		err := bc.conCallback(bc)
 		if err != nil {
-			_ = ws.conn.Close()
-			ws.conn = nil
+			_ = bc.conn.Close()
+			bc.conn = nil
 			return fmt.Errorf("wsclt: %w", err)
 		}
 	}
-	ws.setStatus(ClientStatusConnected)
-	ws.connTsMilliList = append(ws.connTsMilliList, time.Now().UnixMilli())
-	ws.connId = createConnId(ws.id)
+	bc.setStatus(ClientStatusConnected)
+	bc.connTsMilliList = append(bc.connTsMilliList, time.Now().UnixMilli())
+	bc.connId = createConnId(bc.id)
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	ws.ctxCancelFunc = cancelFunc
-	if ws.ping != nil {
-		go ws.ping(ctx, ws)
+	bc.ctxCancelFunc = cancelFunc
+	if bc.ping != nil {
+		go bc.ping(ctx, bc)
 	}
 	return nil
 }
 
-func (ws *BaseClient) Read() (msgType int, msgData []byte, err error) {
+func (bc *BaseClient) Read() (msgType int, msgData []byte, err error) {
 	// websocket can not support concurrent read
-	ws.readMux.Lock()
-	defer ws.readMux.Unlock()
-	err = ws.checkBeforeReading()
+	bc.readMux.Lock()
+	defer bc.readMux.Unlock()
+	err = bc.checkBeforeReading()
 	if err != nil {
 		err = fmt.Errorf("wsclt: read msg, %w", err)
 		return
 	}
-	msgType, msgData, err = ws.conn.ReadMessage()
+	msgType, msgData, err = bc.conn.ReadMessage()
 	if err != nil {
-		ws.handleRedialWork()
+		bc.handleRedialWork()
 		err = fmt.Errorf("wsclt: read msg, %w", err)
 		return
 	}
 	switch msgType {
 	case websocket.CloseMessage:
-		ws.handleRedialWork()
+		bc.handleRedialWork()
 		err = fmt.Errorf("wsclt: closed")
 	case websocket.PingMessage:
-		ws.latestServerPingTsMilli = time.Now().UnixMilli()
-		ws.logger.Info("Server Ping", "msg", string(msgData))
-		if ws.pong != nil {
-			go ws.pong(ws)
+		bc.latestServerPingTsMilli = time.Now().UnixMilli()
+		bc.logger.Info("Server Ping", "msg", string(msgData))
+		if bc.pong != nil {
+			go bc.pong(bc)
 		}
 	case websocket.PongMessage:
-		ws.latestServerPongTsMilli = time.Now().UnixMilli()
-		ws.logger.Info("Server Pong", "msg", string(msgData))
+		bc.latestServerPongTsMilli = time.Now().UnixMilli()
+		bc.logger.Info("Server Pong", "msg", string(msgData))
 	case websocket.BinaryMessage, websocket.TextMessage:
 	default:
 		err = fmt.Errorf("wsclt: unknown message type %v, msg: %v", msgType, string(msgData))
@@ -252,88 +252,88 @@ func (ws *BaseClient) Read() (msgType int, msgData []byte, err error) {
 	return
 }
 
-func (ws *BaseClient) WriteJSON(v any) error {
+func (bc *BaseClient) WriteJSON(v any) error {
 	// websocket do not support concurrent write
-	ws.writeMux.Lock()
-	defer ws.writeMux.Unlock()
-	if ws.conn == nil {
+	bc.writeMux.Lock()
+	defer bc.writeMux.Unlock()
+	if bc.conn == nil {
 		return errors.New("wsclt: write JSON, conn is nil")
 	}
-	err := ws.conn.WriteJSON(v)
+	err := bc.conn.WriteJSON(v)
 	if err != nil {
 		return fmt.Errorf("wsclt: write JSON, %w", err)
 	}
 	return nil
 }
 
-func (ws *BaseClient) WriteText(v []byte) error {
+func (bc *BaseClient) WriteText(v []byte) error {
 	// websocket do not support concurrent write
-	ws.writeMux.Lock()
-	defer ws.writeMux.Unlock()
-	if ws.conn == nil {
+	bc.writeMux.Lock()
+	defer bc.writeMux.Unlock()
+	if bc.conn == nil {
 		return errors.New("wsclt: write JSON, conn is nil")
 	}
-	err := ws.conn.WriteMessage(websocket.TextMessage, v)
+	err := bc.conn.WriteMessage(websocket.TextMessage, v)
 	if err != nil {
 		return fmt.Errorf("wsclt: write text, %w", err)
 	}
 	return nil
 }
 
-func (ws *BaseClient) Pong(v []byte) error {
+func (bc *BaseClient) Pong(v []byte) error {
 	// websocket do not support concurrent write
-	ws.writeMux.Lock()
-	defer ws.writeMux.Unlock()
-	if ws.conn == nil {
+	bc.writeMux.Lock()
+	defer bc.writeMux.Unlock()
+	if bc.conn == nil {
 		return errors.New("wsclt: conn is nil")
 	}
-	err := ws.conn.WriteMessage(websocket.PongMessage, v)
+	err := bc.conn.WriteMessage(websocket.PongMessage, v)
 	if err != nil {
 		return fmt.Errorf("wsclt: pong, %w", err)
 	}
 	return nil
 }
 
-func (ws *BaseClient) Sub(newTopics []string) (remainTopics []string, err error) {
-	ws.mux.Lock()
-	defer ws.mux.Unlock()
-	newTopics = ws.filterTopics(newTopics)
-	if ws.topicSuber == nil {
+func (bc *BaseClient) Sub(newTopics []string) (remainTopics []string, err error) {
+	bc.mux.Lock()
+	defer bc.mux.Unlock()
+	newTopics = bc.filterTopics(newTopics)
+	if bc.topicSuber == nil {
 		err = errors.New("wsclt: topic suber is nil")
 		return
 	}
 	if len(newTopics) == 0 {
 		return []string{}, nil
 	}
-	oldTopicsLen := len(ws.topics)
+	oldTopicsLen := len(bc.topics)
 	newTopicsLen := len(newTopics)
-	topicsCap := ws.maxTopicNum - oldTopicsLen
+	topicsCap := bc.maxTopicNum - oldTopicsLen
 	canSubTopics := newTopics
 	if topicsCap < newTopicsLen {
 		canSubTopics = newTopics[:topicsCap]
 		remainTopics = newTopics[topicsCap:]
 	}
-	err = ws.topicSuber(ws, canSubTopics)
+	err = bc.topicSuber(bc, canSubTopics)
 	if err != nil {
 		err = fmt.Errorf("wsclt: sub topics, %w", err)
 	} else {
-		ws.topics = append(ws.topics, canSubTopics...)
+		bc.topics = append(bc.topics, canSubTopics...)
 	}
 	return
 }
 
-func (ws *BaseClient) Unsub(topics []string) (currentTopics []string, err error) {
-	ws.mux.Lock()
-	defer ws.mux.Unlock()
-	if len(ws.topics) <= 0 {
+func (bc *BaseClient) Unsub(topics []string) (currentTopics []string, err error) {
+	bc.mux.Lock()
+	defer bc.mux.Unlock()
+	if len(bc.topics) <= 0 {
 		return
 	}
-	if ws.topicUnsuber == nil {
+	if bc.topicUnsuber == nil {
 		err = errors.New("wsclt: topic unsuber is nil")
 		return
 	}
-	currentTopics = ws.topics
-	err = ws.topicUnsuber(ws, topics)
+	currentTopics = bc.topics
+	err = bc.topicUnsuber(bc, topics)
 	if err != nil {
 		return
 	}
@@ -350,71 +350,71 @@ func (ws *BaseClient) Unsub(topics []string) (currentTopics []string, err error)
 	return
 }
 
-func (ws *BaseClient) filterTopics(newTopics []string) []string {
-	return filterTopics(ws.topics, newTopics)
+func (bc *BaseClient) filterTopics(newTopics []string) []string {
+	return filterTopics(bc.topics, newTopics)
 }
 
-func (ws *BaseClient) checkBeforeReading() error {
-	if ws.conn == nil {
+func (bc *BaseClient) checkBeforeReading() error {
+	if bc.conn == nil {
 		return errors.New("wsclt: conn is nil")
 	}
-	if ws.Status() != ClientStatusConnected {
-		return fmt.Errorf("wsclt: status is %v, not connected", ws.status)
+	if bc.Status() != ClientStatusConnected {
+		return fmt.Errorf("wsclt: status is %v, not connected", bc.status)
 	}
 	return nil
 }
 
-func (ws *BaseClient) handleRedialWork() {
-	ws.setStatus(ClientStatusRedial)
-	err := ws.CloseConn()
+func (bc *BaseClient) handleRedialWork() {
+	bc.setStatus(ClientStatusRedial)
+	err := bc.CloseConn()
 	if err != nil {
-		ws.logger.Error("Cannot Close Conn Before Redialing", "err", err)
+		bc.logger.Error("Cannot Close Conn Before Redialing", "err", err)
 	}
-	if !ws.needRecon {
+	if !bc.needRecon {
 		return
 	}
-	go ws.reconnect()
+	go bc.reconnect()
 }
 
-func (ws *BaseClient) reconnect() {
+func (bc *BaseClient) reconnect() {
 	for {
-		ws.logger.Info("Reconnecting")
-		err := ws.Start()
-		if ws.Status() == ClientStatusConnected {
+		bc.logger.Info("Reconnecting")
+		err := bc.Start()
+		if bc.Status() == ClientStatusConnected {
 			break
 		}
 		if err != nil {
-			ws.logger.Error("Cannot Reconnect")
-			time.Sleep(time.Millisecond * time.Duration(ws.reconWaitingTsMilli))
+			bc.logger.Error("Cannot Reconnect")
+			time.Sleep(time.Millisecond * time.Duration(bc.reconWaitingTsMilli))
 		}
 	}
-	if ws.topicSuber != nil {
+	if bc.topicSuber != nil {
 		// must sub by topicSuber
-		err := ws.topicSuber(ws, ws.topics)
+		err := bc.topicSuber(bc, bc.topics)
 		if err != nil {
-			ws.logger.Error("Cannot Sub Topics After Reconnecting", "err", err)
-			ws.handleRedialWork()
+			bc.logger.Error("Cannot Sub Topics After Reconnecting", "err", err)
+			bc.handleRedialWork()
 			return
 		}
 	}
-	ws.logger.Info("Reconnected")
+	bc.logger.Info("Reconnected")
 }
 
-func (ws *BaseClient) CloseConn() error {
-	ws.mux.Lock()
-	if ws.ctxCancelFunc != nil {
-		ws.ctxCancelFunc()
+func (bc *BaseClient) CloseConn() error {
+	bc.mux.Lock()
+	if bc.ctxCancelFunc != nil {
+		bc.ctxCancelFunc()
 	}
 	defer func() {
-		ws.setStatus(ClientStatusNew)
-		ws.mux.Unlock()
+		bc.setStatus(ClientStatusNew)
+		bc.mux.Unlock()
 		// do not set conn nil here
-		// ws.conn = nil
+		// bc.conn = nil
 	}()
-	if ws.conn == nil {
+	if bc.conn == nil {
 		return nil
 	}
-	err := ws.conn.Close()
+	err := bc.conn.Close()
 	if err != nil {
 		return fmt.Errorf("wsclt: cannot close, %w", err)
 	}
@@ -437,7 +437,7 @@ func filterTopics(oldTopics, newTopics []string) []string {
 }
 
 var muxConnCreateTimes = sync.Mutex{}
-var wsConnCreateTimes = 0
+var wsConnCreateTimes int
 
 func createConnId(baseClientId string) string {
 	muxConnCreateTimes.Lock()
@@ -447,7 +447,7 @@ func createConnId(baseClientId string) string {
 }
 
 var muxWsCreateTimes = sync.Mutex{}
-var wsCreateTimes = 0
+var wsCreateTimes int
 
 func createBaseClientId() string {
 	muxWsCreateTimes.Lock()
