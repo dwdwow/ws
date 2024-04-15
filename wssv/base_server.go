@@ -25,15 +25,17 @@ type Client struct {
 	statusMux    sync.Mutex
 	ServerPort   uint64
 	ID           string
+	Request      *http.Request
 	Conn         *websocket.Conn
 	StartTsMilli int64
 	EndTsMilli   int64
 }
 
-func NewClient(serverId string, serverPort uint64, conn *websocket.Conn) *Client {
+func NewClient(serverId string, serverPort uint64, req *http.Request, conn *websocket.Conn) *Client {
 	return &Client{
 		ServerPort:   serverPort,
 		ID:           newCltId(serverId),
+		Request:      req,
 		Conn:         conn,
 		StartTsMilli: time.Now().UnixNano(),
 		EndTsMilli:   0,
@@ -130,7 +132,7 @@ func (s *Server) serverEcho(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	client := NewClient(s.id, s.port, c)
+	client := NewClient(s.id, s.port, r, c)
 	if s.conHandler != nil {
 		s.conHandler(s, client)
 	}
